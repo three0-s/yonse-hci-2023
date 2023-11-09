@@ -37,6 +37,7 @@ def calculate_time(word, keyboard_layout, a, b, prob:float):
 class KeyBoardLayout:
     def __init__(self, init_layout):
         self.layout = init_layout
+        self.commit_cnt = 0
     
     def simulate(self, key1, key2, word_df, a, b, k, T, prev_time):
         ''' Simulate the keyboard layout
@@ -45,14 +46,16 @@ class KeyBoardLayout:
         3. Calculate the transition probability
         4. Accept the new layout with probability
         ''' 
-        # randomly select two keys
-        key1 = np.random.choice(np.arange(30))
-        key2 = np.random.choice(np.arange(30))
-
         layout = self.layout.copy()
-        key1_y, key1_x = key1 // 6, key1 % 6
-        key2_y, key2_x = key2 // 6, key2 % 6
-        layout[key1_y][key1_x], layout[key2_y][key2_x] = layout[key2_y][key2_x], layout[key1_y][key1_x]
+
+        if prev_time > 0:
+            # randomly select two keys
+            key1 = np.random.choice(np.arange(30))
+            key2 = np.random.choice(np.arange(30))
+
+            key1_y, key1_x = key1 // 6, key1 % 6
+            key2_y, key2_x = key2 // 6, key2 % 6
+            layout[key1_y][key1_x], layout[key2_y][key2_x] = layout[key2_y][key2_x], layout[key1_y][key1_x]
         # calculate the time
         time = 0
         for i, row in word_df.iterrows():   
@@ -65,13 +68,18 @@ class KeyBoardLayout:
             prob = 1.
         else:  
             prob = np.exp(-(time - prev_time) / (T*k))
-
+        
         # accept the new layout with probability
         if prob > np.random.rand():
             # commit
             self.layout[:] = layout[:]
+            self.commit_cnt += 1
+            prev_time = time
 
-        return time
+        elif prev_time == 0:
+            prev_time = time
+
+        return prev_time, time
 
  
 
@@ -133,7 +141,7 @@ def optimization(a, b, k, T, N, keyboard_layout):
     for _ in tqdm(range(N)):
         key1 = np.random.choice(np.arange(30))
         key2 = np.random.choice(np.arange(30))
-        prev_time = keyboard_layout.simulate(key1, key2, word_df, a, b, k, T, prev_time)
-        t_value_sequence.append(prev_time)
+        prev_time, time = keyboard_layout.simulate(key1, key2, word_df, a, b, k, T, prev_time)
+        t_value_sequence.append(time)
 
     return keyboard_layout.layout, t_value_sequence
