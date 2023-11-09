@@ -7,7 +7,7 @@ If you want to use any other third-party library, please contact the TA.
 import pandas as pd
 import numpy as np 
 from tqdm.auto import tqdm 
-
+from multiprocessing import Pool, shared_memory
 
 
 def calculate_distance(word, keyboard_layout):
@@ -44,36 +44,49 @@ class KeyBoardLayout:
         2. Calculate the time
         3. Calculate the transition probability
         4. Accept the new layout with probability
-        ''' 
-        # randomly select two keys
-        key1 = np.random.choice(np.arange(30))
-        key2 = np.random.choice(np.arange(30))
-
-        layout = self.layout.copy()
-        key1_y, key1_x = key1 // 6, key1 % 6
-        key2_y, key2_x = key2 // 6, key2 % 6
-        layout[key1_y][key1_x], layout[key2_y][key2_x] = layout[key2_y][key2_x], layout[key1_y][key1_x]
-        # calculate the time
-        time = 0
-        for i, row in word_df.iterrows():   
-            word = row['Word']
-            prob = row['prob']
-            time += calculate_time(word, layout, a, b, prob)
+        '''
         
-        # transition probability
-        if (time - prev_time) <= 0:
-            prob = 1.
-        else:  
-            prob = np.exp(-(time - prev_time) / (T*k))
 
-        # accept the new layout with probability
-        if prob > np.random.rand():
-            # commit
-            self.layout[:] = layout[:]
+        # return time
 
-        return time
 
- 
+def swap(word_df, a, b, k, T, N, keyboard_shm_name, changes_in_t_shm_name, num_iter_shm_name):
+    # retrieve shared memories
+    keyboard = np.frombuffer(dtype=np.dtype('<U1'), buffer=shared_memory.SharedMemory(name=keyboard_shm_name).buf)
+    changes_in_t = np.frombuffer(dtype=np.float64, buffer=shared_memory.SharedMemory(name=changes_in_t_shm_name).buf)
+    num_iter = np.frombuffer(dtype=np.int64, buffer=shared_memory.SharedMemory(name=num_iter_shm_name).buf)
+
+    # randomly select two keys
+    key1 = np.random.choice(np.arange(30))
+    key2 = np.random.choice(np.arange(30))
+
+    prev_time = 0 if num_iter.item() == 0 else changes_in_t[num_iter.item()-1]
+    layout = keyboard.copy()
+    key1_y, key1_x = key1 // 6, key1 % 6
+    key2_y, key2_x = key2 // 6, key2 % 6
+    layout[key1_y][key1_x], layout[key2_y][key2_x] = layout[key2_y][key2_x], layout[key1_y][key1_x]
+    # calculate the time
+    time = 0
+    for i, row in word_df.iterrows():   
+        word = row['Word']
+        prob = row['prob']
+        time += calculate_time(word, layout, a, b, prob)
+    
+    # transition probability
+    if (time - prev_time) <= 0:
+        prob = 1.
+    else:  
+        prob = np.exp(-(time - prev_time) / (T*k))
+
+    # accept the new layout with probability
+    if prob > np.random.rand():
+        # commit
+        keyboard[:] = layout[:]
+
+    changes_in_t[num_iter.item()] = time
+    num_iter += 1
+
+
 
 def optimization(a, b, k, T, N, keyboard_layout):
     '''
@@ -125,15 +138,24 @@ def optimization(a, b, k, T, N, keyboard_layout):
     # Read the word list
     word_df = pd.read_csv('scenario_1/dataset/word_frequency.csv', keep_default_na=False)
     word_df['prob'] = word_df['Frequency'] / word_df['Frequency'].sum()
-    
-    # Initialize the keyboard layout
-    keyboard_layout = KeyBoardLayout(keyboard_layout)
-    prev_time = 0
-    t_value_sequence = []
-    for _ in tqdm(range(N)):
-        key1 = np.random.choice(np.arange(30))
-        key2 = np.random.choice(np.arange(30))
-        prev_time = keyboard_layout.simulate(key1, key2, word_df, a, b, k, T, prev_time)
-        t_value_sequence.append(prev_time)
+    changes_in_t = np.zeros(N)
+    shm = shared_memory.SharedMemory(create=True, size=changes_in_t.nbytes)
+    shared_changes_in_t = np.frombuffer(shm.buf, dtype=changes_in_t.dtype, count=N)
+    shared_changes_in_t[:] = changes_in_t[:]
 
-    return keyboard_layout.layout, t_value_sequence
+    keyboard_layout = np.array(keyboard_layout)
+    shm_key = shared_memory.SharedMemory(create=True, size=keyboard_layout.nbytes)
+    shared_keyboard_layout = np.frombuffer(shm_key.buf, dtype=keyboard_layout.dtype, count=30).reshape((5,6))
+    shared_keyboard_layout[:] = keyboard_layout[:]
+    
+
+    num_iter = np.array([0])
+    shm_iter = shared_memory.SharedMemory(create=True, size=num_iter.nbytes)
+    shared_num_iter = np.frombuffer(shm_iter.buf, dtype=num_iter.dtype, count=1)
+    shared_num_iter[:] = num_iter[:]
+
+    with Pool(4) as p:
+        for _ in tqdm(range(N//4)):
+            p.starmap(swap, [(word_df, a, b, k, T, N, shm_key.name, shm.name, shm_iter.name) for _ in range(4)])
+    shm.close()
+    return shared_keyboard_layout.tolist(), shared_changes_in_t
