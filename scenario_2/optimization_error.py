@@ -151,6 +151,5 @@ def optimization(a,b,k,T,N,keyboard_layout):
         key1 = np.random.choice(np.arange(30))
         key2 = np.random.choice(np.arange(30))
         prev_time, time = keyboard_layout.simulate(key1, key2, text_chunk, a, b, k, T, prev_time)
-        print(prev_time)
         t_value_sequence.append(time)
     return keyboard_layout.layout, t_value_sequence
