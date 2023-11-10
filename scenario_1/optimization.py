@@ -7,7 +7,7 @@ If you want to use any other third-party library, please contact the TA.
 import pandas as pd
 import numpy as np 
 from tqdm.auto import tqdm 
-
+from multiprocessing import Pool, shared_memory
 
 
 def calculate_distance(word, keyboard_layout):
@@ -45,6 +45,7 @@ class KeyBoardLayout:
         2. Calculate the time
         3. Calculate the transition probability
         4. Accept the new layout with probability
+
         ''' 
         layout = self.layout.copy()
 
@@ -81,7 +82,7 @@ class KeyBoardLayout:
 
         return prev_time, time
 
- 
+
 
 def optimization(a, b, k, T, N, keyboard_layout):
     '''
@@ -133,7 +134,16 @@ def optimization(a, b, k, T, N, keyboard_layout):
     # Read the word list
     word_df = pd.read_csv('scenario_1/dataset/word_frequency.csv', keep_default_na=False)
     word_df['prob'] = word_df['Frequency'] / word_df['Frequency'].sum()
-    
+    changes_in_t = np.zeros(N)
+    shm = shared_memory.SharedMemory(create=True, size=changes_in_t.nbytes)
+    shared_changes_in_t = np.frombuffer(shm.buf, dtype=changes_in_t.dtype, count=N)
+    shared_changes_in_t[:] = changes_in_t[:]
+
+    keyboard_layout = np.array(keyboard_layout)
+    shm_key = shared_memory.SharedMemory(create=True, size=keyboard_layout.nbytes)
+    shared_keyboard_layout = np.frombuffer(shm_key.buf, dtype=keyboard_layout.dtype, count=30).reshape((5,6))
+    shared_keyboard_layout[:] = keyboard_layout[:]
+
     # Initialize the keyboard layout
     keyboard_layout = KeyBoardLayout(keyboard_layout)
     prev_time = 0
@@ -146,3 +156,4 @@ def optimization(a, b, k, T, N, keyboard_layout):
         t_value_sequence.append(time)
 
     return keyboard_layout.layout, t_value_sequence
+
