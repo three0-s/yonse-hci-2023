@@ -149,5 +149,5 @@ def optimization(a,b,k,T,N,keyboard_layout):
     for _ in tqdm(range(N)):
         k *= 0.99
         prev_time, time = keyboard_layout.simulate(text_chunk, a, b, k, T, prev_time)
-        t_value_sequence.append(time)
+        t_value_sequence.append(round(time, 6))
     return keyboard_layout.layout, t_value_sequence
