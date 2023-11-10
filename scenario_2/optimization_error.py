@@ -55,7 +55,7 @@ class KeyBoardLayout:
         self.layout = init_layout
         self.commit_cnt = 0
     
-    def simulate(self, key1, key2, text_chunk, a, b, k, T, prev_time):
+    def simulate(self, text_chunk, a, b, k, T, prev_time):
         ''' Simulate the keyboard layout
         1. Swap the two keys
         2. Calculate the time
@@ -148,8 +148,6 @@ def optimization(a,b,k,T,N,keyboard_layout):
     t_value_sequence = []
     for _ in tqdm(range(N)):
         k *= 0.99
-        key1 = np.random.choice(np.arange(30))
-        key2 = np.random.choice(np.arange(30))
-        prev_time, time = keyboard_layout.simulate(key1, key2, text_chunk, a, b, k, T, prev_time)
+        prev_time, time = keyboard_layout.simulate(text_chunk, a, b, k, T, prev_time)
         t_value_sequence.append(time)
     return keyboard_layout.layout, t_value_sequence
