@@ -10,7 +10,7 @@ if __name__ == '__main__':
     '''
 
     #Input your StudentID
-    YourStudentID =
+    YourStudentID = 2019145010
 
     initial_keyboard_layout = [
         ['Q', 'W', 'E', 'R', 'T', 'Y'],
@@ -19,7 +19,7 @@ if __name__ == '__main__':
         ['L', 'Z', 'X', 'C', 'V', 'B'],
         ['N', 'M', 'Space', 'Backspace', '-', ',']]
 
-    keyboard_layout, t_value_sequence = optimization(a=0.083, b=0.127, k=, T=, N=,
+    keyboard_layout, t_value_sequence = optimization(a=0.083, b=0.127, k=1, T=0.001, N=100,
                                                      keyboard_layout=initial_keyboard_layout)
 
     # Save - Keyboard layout

@@ -4,7 +4,96 @@ If you want to use any other third-party library, please contact the TA.
 
 <<< Don't forget to input the arguments (k, T, N) of the optimization function (main.py) !! >>>
 '''
+import pandas as pd
+import numpy as np 
+from tqdm.auto import tqdm 
 
+
+ERROR_PROB = 4/100
+
+
+def calculate_distance(word, keyboard_layout):
+    prev = ''
+    for c in word:
+        if prev == '':
+            prev = c
+            continue
+        elif c == ' ':
+            c = 'Space'
+
+        if len(c) == 1:
+            c = c.upper()
+        if (len(prev) == 1):
+            prev = prev.upper()
+            
+        prev_pos = np.where(np.array(keyboard_layout) == prev)
+        cur_pos = np.where(np.array(keyboard_layout) == c)
+        distance = np.sqrt((prev_pos[0][0] - cur_pos[0][0]) ** 2 + (prev_pos[1][0] - cur_pos[1][0]) ** 2)
+        prev = c
+
+        # Fat finger error
+        if np.random.rand() < ERROR_PROB:
+            c = 'Backspace' 
+            prev_pos = np.where(np.array(keyboard_layout) == prev)
+            cur_pos = np.where(np.array(keyboard_layout) == c)
+            distance = np.sqrt((prev_pos[0][0] - cur_pos[0][0]) ** 2 + (prev_pos[1][0] - cur_pos[1][0]) ** 2)
+            yield distance*2
+
+        yield distance
+
+
+def calculate_time(word, keyboard_layout, a, b):
+    ''' Calculate the time to type a word
+        Here, word is a large text chunk (e.g., a full paragraph)
+    '''
+    distance = list(calculate_distance(word, keyboard_layout))
+    return np.sum([a + b * np.log2(1 + d) for d in distance])
+
+
+class KeyBoardLayout:
+    def __init__(self, init_layout):
+        self.layout = init_layout
+        self.commit_cnt = 0
+    
+    def simulate(self, text_chunk, a, b, k, T, prev_time):
+        ''' Simulate the keyboard layout
+        1. Swap the two keys
+        2. Calculate the time
+        3. Calculate the transition probability
+        4. Accept the new layout with probability
+        ''' 
+        layout = self.layout.copy()
+
+        if prev_time > 0:
+            # randomly select two keys
+            key1 = np.random.choice(np.arange(30))
+            key2 = np.random.choice(np.arange(30))
+
+            key1_y, key1_x = key1 // 6, key1 % 6
+            key2_y, key2_x = key2 // 6, key2 % 6
+            layout[key1_y][key1_x], layout[key2_y][key2_x] = layout[key2_y][key2_x], layout[key1_y][key1_x]
+        # calculate the time
+        time = calculate_time(text_chunk, layout, a, b)
+        
+        # transition probability
+        if (time - prev_time) <= 0:
+            prob = 1.
+        else:  
+            prob = np.exp(-(time - prev_time) / (T*k))
+        
+        # accept the new layout with probability
+        if prob > np.random.rand():
+            # commit
+            self.layout[:] = layout[:]
+            self.commit_cnt += 1
+            prev_time = time
+
+        elif prev_time == 0:
+            prev_time = time
+
+        return prev_time, time
+
+ 
 def optimization(a,b,k,T,N,keyboard_layout):
     '''
     Parameter
@@ -50,5 +139,15 @@ def optimization(a,b,k,T,N,keyboard_layout):
 
 
     '''
-
-    return final_keyboard_layout, t_value_sequence
+    with open("scenario_2/dataset/writing.txt", 'r') as f:
+        word_list = f.readlines()
+    text_chunk = ''.join(word_list).replace("\n", "")
+    # Initialize the keyboard layout
+    keyboard_layout = KeyBoardLayout(keyboard_layout)
+    prev_time = 0
+    t_value_sequence = []
+    for _ in tqdm(range(N)):
+        k *= 0.99
+        prev_time, time = keyboard_layout.simulate(text_chunk, a, b, k, T, prev_time)
+        t_value_sequence.append(time)
+    return keyboard_layout.layout, t_value_sequence

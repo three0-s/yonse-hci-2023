@@ -19,7 +19,7 @@ if __name__ == '__main__':
         ['L', 'Z', 'X', 'C', 'V', 'B'],
         ['N', 'M', '*', '*', '*', '*']]
 
-    keyboard_layout, t_value_sequence = optimization(a=0.083, b=0.127, k=1, T=0.8, N=8,
+    keyboard_layout, t_value_sequence = optimization(a=0.083, b=0.127, k=1, T=0.02, N=100,
                                                      keyboard_layout=initial_keyboard_layout)
 
     # Save - Keyboard layout
