@@ -139,6 +139,7 @@ def optimization(a, b, k, T, N, keyboard_layout):
     prev_time = 0
     t_value_sequence = []
     for _ in tqdm(range(N)):
+        k *= 0.99
         key1 = np.random.choice(np.arange(30))
         key2 = np.random.choice(np.arange(30))
         prev_time, time = keyboard_layout.simulate(key1, key2, word_df, a, b, k, T, prev_time)
